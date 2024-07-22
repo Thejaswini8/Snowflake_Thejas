@@ -213,7 +213,12 @@ approach has lot of potential. Can you mention few below,
 page and observe the execution plan.
 How many partitions got scanned from snowflake table 
 */
+/*
+Cost Efficiency: By storing large datasets in S3 and only using Snowflake for compute, you can save on storage costs while still benefiting from Snowflake's performance.
 
+Flexibility: Allows for seamless integration of Snowflake with your existing data lakes or S3-based data stores.
+Easy Data Transfer: The COPY INTO command simplifies the process of moving transformed data back to S3, making it readily available for other applications or further processing.
+*/
 /*
 5. UNLOAD DATA BACK TO S3
 This approach leverages micro partitions in snowflake for lookup table still giving us the 
