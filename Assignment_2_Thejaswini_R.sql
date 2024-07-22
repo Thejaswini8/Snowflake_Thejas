@@ -6,6 +6,7 @@
 -- A. Query data in s3 from snowflake.
 -- B. Create view over data in aws s3.
 -- C. Disadvantages and advantages of this approach.
+
 create warehouse sys_wh
 WAREHOUSE_SIZE='xsmall'
 WAREHOUSE_TYPE='standard'
@@ -24,8 +25,6 @@ CREATE OR REPLACE TRANSIENT TABLE DEMO_DB.PUBLIC.CUSTOMER_TEST
 AS
 SELECT * FROM 
 "SNOWFLAKE_SAMPLE_DATA"."TPCDS_SF100TCL"."CUSTOMER";
-
-ALTER SESSION SET USE_CACHED_RESULT = FALSE;
 
 --creating stage
 
