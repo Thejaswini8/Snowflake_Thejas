@@ -25,6 +25,17 @@ FILE_FORMAT = (TYPE = 'JSON')
 ON_ERROR = CONTINUE;
 
 ALTER PIPE person_pipe REFRESH;
+Select  SYSTEM$PIPE_STATUS('person_pipe');
+SELECT *
+FROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(
+    table_name => 'PERSON_NESTED',
+    start_time => DATEADD('hour', -24, CURRENT_TIMESTAMP())
+));
+select * from table (validate_pipe_load(
+pipe_name=>'person_pipe',
+start_time=>dateadd(hour,-1,current_timestamp())
+));
+SELECT * from PERSON_NESTED;
 
 CREATE OR REPLACE STREAM Person_Stream 
 ON TABLE PERSON_NESTED;
@@ -84,7 +95,13 @@ BEGIN
     WHEN NOT MATCHED THEN
         INSERT (ID, Name, Age, Location, Zip, Filename, FileRowNumber, IngestedTimestamp)
         VALUES (source.ID, source.Name, source.Age, source.Location, source.Zip, source.Filename, source.FileRowNumber, source.IngestedTimestamp);
-
+        
+          -- Insert data into PERSON_AGE
+          INSERT INTO PERSON_AGE (Name, Age)
+          SELECT Name, Age FROM PERSON_MASTER;          
+          -- Insert data into PERSON_LOCATION
+          INSERT INTO PERSON_LOCATION (Name, Location)
+          SELECT Name, Location FROM PERSON_MASTER;
     RETURN 'MERGE operation completed successfully';
 END;
 $$;
