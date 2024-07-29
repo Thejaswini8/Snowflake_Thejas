@@ -15,7 +15,7 @@ CREATE OR REPLACE PIPE person_pipe AUTO_INGEST = TRUE AS
 COPY INTO PERSON_NESTED (person, filename, file_row_number, load_timestamp)
 FROM (
     SELECT 
-        $1:person AS person, 
+        $1 AS person, 
         METADATA$FILENAME AS filename,
         METADATA$FILE_ROW_NUMBER AS file_row_number,
         TO_TIMESTAMP_NTZ(current_timestamp) AS load_timestamp
