@@ -1,0 +1,112 @@
+CREATE OR REPLACE STAGE Ext_stage
+URL='s3://snow-assign-3/person/'
+CREDENTIALS=(AWS_KEY_ID='xxxxxxxxxxxxxxxx' AWS_SECRET_KEY='xxxxxxxxxxxxxx')
+FILE_FORMAT = (TYPE = 'JSON');
+uncate table PERSON_MASTER; 
+
+CREATE OR REPLACE TABLE PERSON_NESTED (
+    person VARIANT,
+    filename VARCHAR,
+    file_row_number VARCHAR,
+    load_timestamp TIMESTAMP DEFAULT TO_TIMESTAMP_NTZ(current_timestamp)
+);
+
+CREATE OR REPLACE PIPE person_pipe AUTO_INGEST = TRUE AS
+COPY INTO PERSON_NESTED (person, filename, file_row_number, load_timestamp)
+FROM (
+    SELECT 
+        $1:person AS person, 
+        METADATA$FILENAME AS filename,
+        METADATA$FILE_ROW_NUMBER AS file_row_number,
+        TO_TIMESTAMP_NTZ(current_timestamp) AS load_timestamp
+    FROM @Ext_stage
+)
+FILE_FORMAT = (TYPE = 'JSON')
+ON_ERROR = CONTINUE;
+
+ALTER PIPE person_pipe REFRESH;
+
+CREATE OR REPLACE STREAM Person_Stream 
+ON TABLE PERSON_NESTED;
+
+CREATE OR REPLACE TABLE PERSON_MASTER (
+    ID VARCHAR,
+    Name VARCHAR,
+    Age INTEGER,
+    Location VARCHAR,
+    Zip VARCHAR,
+    Filename VARCHAR,
+    FileRowNumber VARCHAR,
+    IngestedTimestamp TIMESTAMP
+);
+
+
+CREATE OR REPLACE TABLE PERSON_AGE (
+    Name STRING,
+    Age INT
+);
+
+CREATE OR REPLACE TABLE PERSON_LOCATION (
+    Name STRING,
+    Location STRING
+);
+
+CREATE OR REPLACE PROCEDURE update_person_master()
+RETURNS STRING
+LANGUAGE SQL
+AS
+$$
+BEGIN
+    MERGE INTO PERSON_MASTER AS target
+    USING (
+        SELECT
+            VALUE:$1::VARCHAR AS ID,
+            VALUE:$2::VARCHAR AS Name,
+            VALUE:$3::INTEGER AS Age,
+            VALUE:$4::VARCHAR AS Location,
+            IFF(VALUE:$5::VARCHAR = '' OR VALUE:$5 IS NULL, '00000', VALUE:$5::VARCHAR) AS Zip,
+            METADATA$FILENAME AS Filename,
+            METADATA$FILE_ROW_NUMBER AS FileRowNumber,
+            TO_TIMESTAMP_NTZ(CURRENT_TIMESTAMP) AS IngestedTimestamp
+        FROM PERSON_NESTED,
+        LATERAL FLATTEN(input => PERSON_NESTED.person) AS flattened
+    ) AS source
+    ON target.ID = source.ID
+    WHEN MATCHED THEN
+        UPDATE SET
+            target.Name = source.Name,
+            target.Age = source.Age,
+            target.Location = source.Location,
+            target.Zip = source.Zip,
+            target.Filename = source.Filename,
+            target.FileRowNumber = source.FileRowNumber,
+            target.IngestedTimestamp = source.IngestedTimestamp
+    WHEN NOT MATCHED THEN
+        INSERT (ID, Name, Age, Location, Zip, Filename, FileRowNumber, IngestedTimestamp)
+        VALUES (source.ID, source.Name, source.Age, source.Location, source.Zip, source.Filename, source.FileRowNumber, source.IngestedTimestamp);
+
+    RETURN 'MERGE operation completed successfully';
+END;
+$$;
+
+CREATE OR REPLACE TASK Person_Task 
+WAREHOUSE='SYS_WH' 
+SCHEDULE='1 minute'
+WHEN SYSTEM$STREAM_HAS_DATA('Person_Stream')
+AS
+CALL update_person_master();
+
+ALTER TASK Person_Task RESUME;
+
+SELECT * FROM Person_Stream;
+show pipes;
+SHOW TASKS LIKE 'Person_Task';
+SELECT * FROM TABLE(INFORMATION_SCHEMA.TASK_HISTORY())
+WHERE NAME = 'Person_Task';
+
+select * from person_nested;
+select * from person_master;
+select * from PERSON_AGE;
+select * from PERSON_LOCATION;
+
+
