@@ -1,56 +1,177 @@
+create database abc;
+use database abc;
+/*
+We will use the Snowflake features to enable continuous data pipelines.
+➢ External Stage on s3
+➢ SnowPipe
+➢ Streams
+➢ Tasks
+➢ Stored Procedures
+*/
+
+/*
+External Stage on S3:
+a. Create User in AWS with Programmatic access and copy the credentials.
+b. Create s3 bucket
+c. Create Stage: Use below SQL statement in Snowflake to create external stage on s3(AWS).
+*/
 CREATE OR REPLACE STAGE Ext_stage
 URL='s3://snow-assign-3/person/'
-CREDENTIALS=(AWS_KEY_ID='xxxxxxxxxxxxxxxx' AWS_SECRET_KEY='xxxxxxxxxxxxxx')
+CREDENTIALS=(AWS_KEY_ID='xxxxxxxxxxx' AWS_SECRET_KEY='xxxxxxxxxxxxx')
 FILE_FORMAT = (TYPE = 'JSON');
-uncate table PERSON_MASTER; 
-
+DROP TABLE PERSON_NESTED;
+--d. CREATE table in Snowflake with VARIANT column
 CREATE OR REPLACE TABLE PERSON_NESTED (
-    person VARIANT,
-    filename VARCHAR,
-    file_row_number VARCHAR,
-    load_timestamp TIMESTAMP DEFAULT TO_TIMESTAMP_NTZ(current_timestamp)
+    person VARIANT
 );
-
+--e. Create a Snowpipe with Auto Ingest Enabled
 CREATE OR REPLACE PIPE person_pipe AUTO_INGEST = TRUE AS
-COPY INTO PERSON_NESTED (person, filename, file_row_number, load_timestamp)
-FROM (
-    SELECT 
-        $1 AS person, 
-        METADATA$FILENAME AS filename,
-        METADATA$FILE_ROW_NUMBER AS file_row_number,
-        TO_TIMESTAMP_NTZ(current_timestamp) AS load_timestamp
-    FROM @Ext_stage
-)
+COPY INTO PERSON_NESTED
+FROM @Ext_stage
 FILE_FORMAT = (TYPE = 'JSON')
 ON_ERROR = CONTINUE;
+ 
+show pipes;
+ 
+SELECT * from PERSON_NESTED;
 
-ALTER PIPE person_pipe REFRESH;
+--f. Subscribe the Snowflake SQS Queue in s3:
+
+show pipes;
+
+/*
+g. Test Snowpipe by copying the sample JSON file and 
+upload the file to s3 in path
+*/
+
+alter pipe person_pipe refresh;
+
+/*
+Below are few ways we can validation if Snowpipe ran 
+successfully.
+*/
+/*
+1 . Check the pipe status using below command, it shows 
+RUNNIG and it also shows pendingFileCount.
+*/
 Select  SYSTEM$PIPE_STATUS('person_pipe');
+/*
+2. Check COPY_HISTORY for the table you are loading data to. If 
+there is any error with Data Load, you can find that error here to 
+debug the Load issue.
+*/
+select * from table (validate_pipe_load(
+pipe_name=>'person_pipe',
+start_time=>dateadd(hour,-1,current_timestamp())
+));
+
 SELECT *
 FROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(
     table_name => 'PERSON_NESTED',
     start_time => DATEADD('hour', -24, CURRENT_TIMESTAMP())
 ));
-select * from table (validate_pipe_load(
-pipe_name=>'person_pipe',
-start_time=>dateadd(hour,-1,current_timestamp())
-));
+
+/*
+3. Finally check if data is loaded to table by querying the table.
+*/
 SELECT * from PERSON_NESTED;
+
+/*
+Change Data Capture using Streams, Tasks and Merge.
+*/
+
+/*
+-- 1.Create Streams on PERSON_NESTED table to capture the 
+-- change data on PERSON_NESTED table and use TASKS to Run 
+-- SQL,Stored Procedure to Unnested the data from 
+-- PERSON_NESTED and create PERSON_MASTER table*/
 
 CREATE OR REPLACE STREAM Person_Stream 
 ON TABLE PERSON_NESTED;
 
+SELECT * FROM Person_Stream; 
+
+/*
+2. Create a table to Load the unnested data from 
+PERSON_NESTED.
+*/
 CREATE OR REPLACE TABLE PERSON_MASTER (
-    ID VARCHAR,
-    Name VARCHAR,
-    Age INTEGER,
-    Location VARCHAR,
-    Zip VARCHAR,
-    Filename VARCHAR,
-    FileRowNumber VARCHAR,
-    IngestedTimestamp TIMESTAMP
+    ID STRING,
+    Name STRING,
+    Age INT,
+    Location STRING,
+    Zip STRING,
+    Filename STRING,         
+    FileRowNumber INT,        
+    IngestedTimestamp TIMESTAMP_NTZ 
 );
 
+/*
+3. Create a TASK which run every 1 min and look for data in 
+Stream PERSON_NESTED_STREAM, if data found in Stream 
+then task will EXECUTE if not TASK will be SKIPPED without 
+any doing anything.
+*/
+CREATE OR REPLACE TASK Person_Task 
+WAREHOUSE='SYS_WH' 
+SCHEDULE='1 minute'
+WHEN SYSTEM$STREAM_HAS_DATA('Person_Stream') AS
+CALL update_person_master();
+
+/*
+4. Test PIPELINE
+a) All the tables and Steam is empty, if not Truncate them.
+b) Upload sample JSON data to s3 created
+c) Select data from PERSON_NESTED: Snowpipe would 
+have loaded data to PERSON_NESTED table based on s3 
+sqs event notification.
+*/
+select * from Person_Stream;
+/*
+d) Check COPY HISTORY to know the status of COPY 
+command and number of files copied.
+*/
+SELECT *
+FROM TABLE(INFORMATION_SCHEMA.COPY_HISTORY(
+    table_name => 'PERSON_NESTED',
+    start_time => DATEADD('hour', -24, CURRENT_TIMESTAMP())
+));
+/*
+e) Steams capture any data change on the source 
+table(PERSON_NESTED). So all the new data added to 
+PERSON_NESTED should be in 
+PERSON_NESTED_STREAM. Stream also contains 
+additional columns which says if its 
+INSERT/UPDATE/DELETE and it also contain unique 
+METADATA$ROW_ID. Check those Columns.
+f) As we have created task to run every 1 min if there is data 
+in Stream, you should be able to see the data in 
+PERSON_MASTER table now.
+*/
+select * from Person_Stream;
+/*
+g) Once stream gets consumed in any DML operation the 
+data from stream(PERSON_NESTED_STREAM) will be 
+erased, PERSON_NESTED_STREAM steam will be empty
+now as TASK ran and loaded the data to 
+PERSON_MASTER.
+*/
+CREATE OR REPLACE TASK Person_Task 
+WAREHOUSE='SYS_WH' 
+SCHEDULE='1 minute'
+WHEN SYSTEM$STREAM_HAS_DATA('Person_Stream')
+AS
+CALL update_person_master();
+
+ALTER TASK Person_Task RESUME;
+/*
+ELT IN SNOWFLAKE USING STORED PROCEDURE
+a) Create stored procedure to run Multiple SQL statements to 
+automate data Load from PERSON_MASTER to two tables 
+PERSON_AGE(Name, Age) and 
+PERSON_LOCATION(Name, Location). This stored 
+procedure should be called by TASK.
+*/
 
 CREATE OR REPLACE TABLE PERSON_AGE (
     Name STRING,
@@ -62,6 +183,16 @@ CREATE OR REPLACE TABLE PERSON_LOCATION (
     Location STRING
 );
 
+
+/*
+b) Stored Procedure Call : 
+c) CALL PERSON_MASTER_PROCEDURE(arguments1);
+Create Stored Procedure which runs below 2 SQLs.
+1.Insert data into Location table from Person 
+Master table.
+2. Insert data into Age table from Person Master 
+table
+*/
 CREATE OR REPLACE PROCEDURE update_person_master()
 RETURNS STRING
 LANGUAGE SQL
@@ -105,15 +236,6 @@ BEGIN
     RETURN 'MERGE operation completed successfully';
 END;
 $$;
-
-CREATE OR REPLACE TASK Person_Task 
-WAREHOUSE='SYS_WH' 
-SCHEDULE='1 minute'
-WHEN SYSTEM$STREAM_HAS_DATA('Person_Stream')
-AS
-CALL update_person_master();
-
-ALTER TASK Person_Task RESUME;
 
 SELECT * FROM Person_Stream;
 show pipes;
