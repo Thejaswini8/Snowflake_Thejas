@@ -114,6 +114,16 @@ FROM (
 )
 FILE_FORMAT = json_file_format;
 
+show pipes;
+
+alter pipe list_pipe refresh;
+alter pipe info_pipe refresh;
+alter pipe stats_pipe refresh;
+
+Select  SYSTEM$PIPE_STATUS('list_pipe');
+Select  SYSTEM$PIPE_STATUS('info_pipe');
+Select  SYSTEM$PIPE_STATUS('stats_pipe');
+
 select * from list_table limit 10;
 select * from info_table limit 10;
 select * from stats_table limit 10;
