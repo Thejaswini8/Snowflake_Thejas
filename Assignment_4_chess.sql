@@ -42,10 +42,9 @@ CREATE OR REPLACE TABLE info_table (
     joined DATE,
     location VARCHAR,
     name VARCHAR,
-    player_id NUMERIC,
+    player_id STRING,
     status VARCHAR,
-    title VARCHAR,
-    player_id NUMERIC
+    title VARCHAR
 );
 
 -- Create the stats_table
@@ -63,7 +62,7 @@ CREATE OR REPLACE TABLE stats_table (
     loss_rapid NUMERIC,
     win_rapid NUMERIC,
     FIDE NUMERIC,
-    player_id NUMERIC
+    username STRING
 );
 
 -- Create a Snowpipe to load data from S3 into the list_table
@@ -77,15 +76,15 @@ FILE_FORMAT = json_file_format;
 
 -- Create a Snowpipe to load data from S3 into the info_table
 CREATE OR REPLACE PIPE info_pipe AS
-COPY INTO info_table (username, followers, country, joined, location, name, player_id, status, title, primary_key)
+COPY INTO info_table (username, followers, country, joined, location, name, player_id, status, title)
 FROM (SELECT 
-        $1:username::STRING,
+        $1:username::STRING, -- Assuming username can be used as primary_key
         $1:followers::NUMERIC,
         $1:country::STRING,
         TO_DATE($1:joined::STRING, 'YYYY-MM-DD'),
         $1:location::STRING,
         $1:name::STRING,
-        $1:player_id::NUMERIC,-- Assuming player_id can be used as primary_key
+        $1:player_id::NUMERIC,
         $1:status::STRING,
         $1:title::STRING
       FROM @chess_stage/info_file.json)
@@ -93,7 +92,7 @@ FILE_FORMAT = json_file_format;
 
 -- Create a Snowpipe to load data from S3 into the stats_table
 CREATE OR REPLACE PIPE stats_pipe AS
-COPY INTO stats_table (last_blitz, draw_blitz, loss_blitz, win_blitz, last_bullet, draw_bullet, loss_bullet, win_bullet, last_rapid, draw_rapid, loss_rapid, win_rapid, FIDE, primary_key)
+COPY INTO stats_table (last_blitz, draw_blitz, loss_blitz, win_blitz, last_bullet, draw_bullet, loss_bullet, win_bullet, last_rapid, draw_rapid, loss_rapid, win_rapid, FIDE, username)
 FROM (
   SELECT 
     $1:chess_blitz:last:rating::NUMERIC AS last_blitz,
@@ -109,7 +108,7 @@ FROM (
     $1:chess_rapid:record:loss::NUMERIC AS loss_rapid,
     $1:chess_rapid:record:win::NUMERIC AS win_rapid,
     $1:fide::NUMERIC AS FIDE,
-    $1:player_id::NUMERIC AS primary_key -- Assuming player_id can be used as primary_key
+    $1:username::NUMERIC AS username -- Assuming username can be used as primary_key
   FROM @chess_stage/stats_file.json
 )
 FILE_FORMAT = json_file_format;
