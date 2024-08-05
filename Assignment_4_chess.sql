@@ -75,19 +75,19 @@ FROM (SELECT
 FILE_FORMAT = json_file_format;
 
 -- Create a Snowpipe to load data from S3 into the info_table
-CREATE OR REPLACE PIPE info_pipe AS
+CREATE OR REPLACE PIPE info_pipe AUTO_INGEST = TRUE AS
 COPY INTO info_table (username, followers, country, joined, location, name, player_id, status, title)
 FROM (SELECT 
-        $1:username::STRING, -- Assuming username can be used as primary_key
+        $1:username::VARCHAR,-- Assuming username can be used as primary_key
         $1:followers::NUMERIC,
-        $1:country::STRING,
-        TO_DATE($1:joined::STRING, 'YYYY-MM-DD'),
-        $1:location::STRING,
-        $1:name::STRING,
-        $1:player_id::NUMERIC,
-        $1:status::STRING,
-        $1:title::STRING
-      FROM @chess_stage/info_file.json)
+        $1:country::VARCHAR,
+        $1:joined::DATE,
+        $1:location::VARCHAR,
+        $1:name::VARCHAR,
+        $1:player_id::STRING,
+        $1:status::VARCHAR,
+        $1:title::VARCHAR
+      FROM @chess_stage/Info_file.json)
 FILE_FORMAT = json_file_format;
 
 -- Create a Snowpipe to load data from S3 into the stats_table
