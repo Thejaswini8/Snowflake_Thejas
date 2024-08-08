@@ -77,7 +77,7 @@ FILE_FORMAT = json_file_format;
 
 -- Create a Snowpipe to load data from S3 into the info_table
 CREATE OR REPLACE PIPE info_pipe AUTO_INGEST = TRUE AS
-COPY INTO info_table (username, followers, country, joined, location, name, player_id, status, title)
+COPY INTO info_table (username, followers, country, joined, location, name, player_id, status, title, primary_key)
 FROM (SELECT 
         $1:username::VARCHAR,-- Assuming username can be used as primary_key
         $1:followers::NUMERIC,
