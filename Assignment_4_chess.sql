@@ -44,7 +44,8 @@ CREATE OR REPLACE TABLE info_table (
     name VARCHAR,
     player_id STRING,
     status VARCHAR,
-    title VARCHAR
+    title VARCHAR,
+    primary_key NUMERIC
 );
 
 -- Create the stats_table
@@ -62,7 +63,7 @@ CREATE OR REPLACE TABLE stats_table (
     loss_rapid NUMERIC,
     win_rapid NUMERIC,
     FIDE NUMERIC,
-    username STRING
+    primary_key NUMERIC
 );
 
 -- Create a Snowpipe to load data from S3 into the list_table
@@ -87,28 +88,29 @@ FROM (SELECT
         $1:player_id::STRING,
         $1:status::VARCHAR,
         $1:title::VARCHAR
+        $1:primary_key::VARCHAR
       FROM @chess_stage/Info_file.json)
 FILE_FORMAT = json_file_format;
 
 -- Create a Snowpipe to load data from S3 into the stats_table
-CREATE OR REPLACE PIPE stats_pipe AS
-COPY INTO stats_table (last_blitz, draw_blitz, loss_blitz, win_blitz, last_bullet, draw_bullet, loss_bullet, win_bullet, last_rapid, draw_rapid, loss_rapid, win_rapid, FIDE, username)
+CREATE OR REPLACE PIPE stats_pipe AUTO_INGEST = TRUE AS
+COPY INTO stats_table (last_blitz, draw_blitz, loss_blitz, win_blitz, last_bullet, draw_bullet, loss_bullet, win_bullet, last_rapid, draw_rapid, loss_rapid, win_rapid, FIDE,primary_key)
 FROM (
   SELECT 
-    $1:chess_blitz:last:rating::NUMERIC AS last_blitz,
-    $1:chess_blitz:record:draw::NUMERIC AS draw_blitz,
-    $1:chess_blitz:record:loss::NUMERIC AS loss_blitz,
-    $1:chess_blitz:record:win::NUMERIC AS win_blitz,
-    $1:chess_bullet:last:rating::NUMERIC AS last_bullet,
-    $1:chess_bullet:record:draw::NUMERIC AS draw_bullet,
-    $1:chess_bullet:record:loss::NUMERIC AS loss_bullet,
-    $1:chess_bullet:record:win::NUMERIC AS win_bullet,
-    $1:chess_rapid:last:rating::NUMERIC AS last_rapid,
-    $1:chess_rapid:record:draw::NUMERIC AS draw_rapid,
-    $1:chess_rapid:record:loss::NUMERIC AS loss_rapid,
-    $1:chess_rapid:record:win::NUMERIC AS win_rapid,
-    $1:fide::NUMERIC AS FIDE,
-    $1:username::NUMERIC AS username -- Assuming username can be used as primary_key
+    $1:last_blitz::NUMERIC AS last_blitz,
+    $1:draw_blitz::NUMERIC AS draw_blitz,
+    $1:loss_blitz::NUMERIC AS loss_blitz,
+    $1:win_blitz::NUMERIC AS win_blitz,
+    $1:last_bullet::NUMERIC AS last_bullet,
+    $1:draw_bullet::NUMERIC AS draw_bullet,
+    $1:loss_bullet::NUMERIC AS loss_bullet,
+    $1:win_bullet::NUMERIC AS win_bullet,
+    $1:last_rapid::NUMERIC AS last_rapid,
+    $1:draw_rapid::NUMERIC AS draw_rapid,
+    $1:loss_rapid::NUMERIC AS loss_rapid,
+    $1:win_rapid::NUMERIC AS win_rapid,
+    $1:FIDE::NUMERIC AS FIDE,
+    $1:primary_key::NUMERIC AS primary_key 
   FROM @chess_stage/stats_file.json
 )
 FILE_FORMAT = json_file_format;
@@ -133,73 +135,77 @@ select * from stats_table limit 10;
 
 --1.Username of the best player by category (blitz, chess, bullet)
 
--- Best Blitz Player
-SELECT username, MAX(last_blitz) AS max_blitz_rating
-FROM stats_table
-GROUP BY username
-ORDER BY max_blitz_rating DESC
+-- Best blitz player
+SELECT username
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+ORDER BY st.last_blitz DESC
 LIMIT 1;
 
--- Best Bullet Player
-SELECT username, MAX(last_bullet) AS max_bullet_rating
-FROM stats_table
-GROUP BY username
-ORDER BY max_bullet_rating DESC
+-- Best bullet player
+SELECT username
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+ORDER BY st.last_bullet DESC
 LIMIT 1;
 
--- Best Rapid Player
-SELECT username, MAX(last_rapid) AS max_rapid_rating
-FROM stats_table
-GROUP BY username
-ORDER BY max_rapid_rating DESC
+-- Best rapid player
+SELECT username
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+ORDER BY st.last_rapid DESC
 LIMIT 1;
 
 --2.Full name (or username if null) of the best player and his FIDE elo
 
 SELECT 
-    COALESCE(p.name, p.username) AS best_player_name, 
-    s.FIDE AS fide_elo
-FROM info_table p
-JOIN stats_table s ON p.username = s.username
-ORDER BY s.FIDE DESC
+    COALESCE(it.name, it.username) AS player_name,
+    st.FIDE
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+ORDER BY st.FIDE DESC
 LIMIT 1;
 
 --3.Average elo of premium, staff and basic players
 
 SELECT 
     status,
-    AVG(s.FIDE) AS average_fide_elo
-FROM info_table p
-JOIN stats_table s ON p.username = s.username
-WHERE p.status IN ('premium', 'staff', 'basic')
+    AVG(last_blitz) AS avg_blitz_elo,
+    AVG(last_bullet) AS avg_bullet_elo,
+    AVG(last_rapid) AS avg_rapid_elo,
+    AVG(FIDE) AS avg_FIDE_elo
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+WHERE status IN ('premium', 'staff', 'basic')
 GROUP BY status;
 
 --4.Number of professional players and their elo
 
 SELECT 
-    COUNT(p.username) AS professional_player_count,
-    AVG(s.FIDE) AS average_fide_elo
-FROM info_table p
-JOIN stats_table s ON p.username = s.username
-WHERE p.title IS NOT NULL;  -- Assuming professional players have a non-null title
+    COUNT(*) AS num_pro_players,
+    AVG(FIDE) AS avg_pro_elo
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+WHERE title IS NOT NULL;
 
 --5.Average FIDE elo by their professional FIDE elo
 
 SELECT 
     title,
-    AVG(s.FIDE) AS average_fide_elo
-FROM info_table p
-JOIN stats_table s ON p.username = s.username
-WHERE p.title IS NOT NULL
+    AVG(FIDE) AS avg_FIDE_elo
+FROM info_table AS it
+JOIN stats_table AS st ON it.primary_key = st.primary_key
 GROUP BY title;
 
 --6.Best player currently on live
 
 SELECT 
-    l.username,
-    s.FIDE AS fide_elo
-FROM list_table l
-JOIN stats_table s ON l.username = s.username
-WHERE l.is_live = TRUE
-ORDER BY s.FIDE DESC
+    it.username,
+    st.FIDE
+FROM list_table AS lt
+JOIN info_table AS it ON lt.username = it.username
+JOIN stats_table AS st ON it.primary_key = st.primary_key
+WHERE lt.is_live = 1
+ORDER BY st.FIDE DESC
 LIMIT 1;
+
