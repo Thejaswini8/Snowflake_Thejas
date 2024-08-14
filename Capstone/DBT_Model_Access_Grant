@@ -5,7 +5,7 @@ GRANT All PRIVILEGES ON FUTURE TABLES IN DATABASE BANKING TO ROLE PC_DBT_ROLE;
 REVOKE APPLYBUDGET ON DATABASE PC_DBT_DB FROM ROLE PC_DBT_ROLE;
 SHOW GRANTS ON DATABASE PC_DBT_DB;
 ---------------------------------
----create udf
+---- UDF for rating risk category for amount transaction / fraud detection -----
 create or replace function trans_func(amount number)
 returns string
 language sql 
@@ -19,6 +19,20 @@ $$
 In DBT -> Model -> Example ->
 Transaction_model.sql
 select *, BANKING.RAW.TRANS_FUNC(amount) as risk_level from BANKING.RAW.transactions
+----UDF for location fraulent transaction----------
+create or replace function location_func(location_city varchar)
+returns string
+language sql 
+as
+$$
+select case when tr.location_city != cs.city then 'shift_in_location' 
+        else 'no_shift' end as L 
+        from transactions tr 
+        join customers cs 
+        on tr.customer_id=cs.customer_id 
+$$
+;
+GRANT USAGE on FUNCTION location_func(varchar) to role PC_DBT_ROLE;
 -----------------------------------------------------------------------------------------
 CREATE OR REPLACE DATABASE BANKING;
 CREATE OR REPLACE SCHEMA BANKING.RAW;
