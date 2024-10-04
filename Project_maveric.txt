@@ -1,0 +1,79 @@
+Project 1: Maveric Systems Ltd 	Livestream Log – Data Pipeline with Power BI
+
+Description: In the banking domain, the escalating reliance on digital channels for customer interactions has catalyzed a surge in data generated from various sources such as online banking platforms, mobile apps, and ATM transactions. The Banking Analytics – Data Pipeline project endeavors to harness this data to enhance decision-making processes, improve customer experiences, and optimize operational efficiency. By establishing a robust data pipeline integrated with Power BI, the project aims to furnish banks with real-time insights into customer behavior, transaction trends, risk assessment, and regulatory compliance.
+Roles & Responsibilities:
+
+•	Understanding the requirements and functional specifications of the applications.
+•	Reviewing the requirement & finding out the gaps in the requirement & raising clarifications.
+•	Designed and implemented a data ingestion framework to capture data from online banking platforms.
+•	Developed data processing pipelines to cleanse, enrich, and aggregate raw banking data for analysis, addressing data quality issues, integration challenges, and ensuring data privacy and security.
+•	Integrated Power BI to create interactive dashboards and reports visualizing key banking metrics, performance indicators, customer segments, and risk profiles.
+•	Provided documentation, training, and support to bank personnel for effectively utilizing the data pipeline and Power BI dashboards to drive decision-making and business outcomes.
+
+Environment: Jira, Hadoop, HDFS, Hive, PySpark and Power Bi
+
+Project Integrartion: retail banking, credit card data, savings account transaction and loan data were combined etl was built using python, used config files for not making a generic code then, pushed data in local to aws using 
+boto3 (connects python and aws), built dashboard using power bi
+/*
+i made two projects using snowflake
+1.) Streaming NSE data was taken using kafka script, stored in vm and connected to azzure using integration runtime and stored data in azure containers in blob ADLS. Decompressed, decoded the data which was in compressed and binary form and stored to azzure container as new directory, then snowpipe was created with event notification to load this decompreseed and decoded data to snowflake. Appended streams, tasks and stored procedures. Then using dbt cleansing and transformation rules were desined and performed using dbt which was in snowflake partner connect. we then included times now sentimental analysis by web scrapping data and using AI/ML model option in snowflake. Then connected snowflalke to power bi to build dashboard.
+2.) In global banking project Data was loaded from s3 bucket to snowflake usinfg sqs notification, snowpipe, streams, tasks and stored procedures. Querry optimization was included by having cluster keys for backgroud snowflake partioning and few materialized views were also created. then few cleansing and transformation was performed with dbt snowflake partner connect and then stored data back to snowflake.then connected from snowflake to power bi for building dashboard.
+*/
+
+Project 2: Real-Time NSE Data Pipeline with Sentiment Analysis
+
+Developed a real-time data pipeline using Kafka to stream NSE data, stored on a VM and connected to Azure via Integration Runtime, then loaded into Azure Blob ADLS.
+Decompressed and decoded binary and compressed data, managing the lifecycle of data stored in Azure containers.
+Implemented Snowpipe with event notification to automatically load the processed data into Snowflake for analysis.
+Designed and executed data transformations and cleansing rules using dbt, integrated via Snowflake Partner Connect.
+Integrated sentiment analysis by scraping Times Now data, leveraging Snowflake’s AI/ML capabilities for advanced insights.
+Built interactive dashboards in Power BI by connecting Snowflake, providing real-time insights into market trends.
+
+Project 3: Global Banking Data Warehouse Optimization
+
+Architected a data ingestion pipeline from AWS S3 to Snowflake using SQS notifications, Snowpipe, streams, tasks, and stored procedures for efficient ETL processing.
+Performed query optimization using cluster keys for Snowflake partitioning and created materialized views to enhance performance.
+Used dbt within Snowflake Partner Connect for data transformation and cleansing before loading the final data back to Snowflake.
+Connected Snowflake to Power BI to create dashboards that delivered actionable insights for global banking stakeholders.
+
+Key Skills:
+
+AWS (S3, SQS), Azure Blob Storage (ADLS)
+Kafka, Snowflake (Snowpipe, Streams, Tasks, Stored Procedures)
+SQL, Python, dbt, Git
+Power BI, AI/ML Integration
+Data Ingestion, Transformation, and Optimization
+Sentiment Analysis and Web Scraping
+
+
+/*
+Project 1: Real-Time NSE Data Pipeline with Sentiment Analysis
+
+Developed a real-time data pipeline using Kafka to stream NSE data, stored on a VM and connected to Azure via Integration Runtime, then loaded into Azure Blob ADLS.
+Decompressed and decoded binary and compressed data, managing the lifecycle of data stored in Azure containers.
+Implemented Snowpipe with event notification to automatically load the processed data into Snowflake for analysis.
+Designed and executed data transformations and cleansing rules using dbt, integrated via Snowflake Partner Connect.
+Integrated sentiment analysis by scraping Times Now data, leveraging Snowflake’s AI/ML capabilities for advanced insights.
+Built interactive dashboards in Power BI by connecting Snowflake, providing real-time insights into market trends.
+Key Skills for Project 1:
+
+Kafka, Azure Blob Storage (ADLS)
+Snowflake (Snowpipe, Streams, Tasks, Stored Procedures)
+Data Decompression and Decoding
+dbt, Web Scraping
+AI/ML Integration in Snowflake
+Power BI
+Project 2: Global Banking Data Warehouse Optimization
+
+Architected a data ingestion pipeline from AWS S3 to Snowflake using SQS notifications, Snowpipe, streams, tasks, and stored procedures for efficient ETL processing.
+Performed query optimization using cluster keys for Snowflake partitioning and created materialized views to enhance performance.
+Used dbt within Snowflake Partner Connect for data transformation and cleansing before loading the final data back to Snowflake.
+Connected Snowflake to Power BI to create dashboards that delivered actionable insights for global banking stakeholders.
+Key Skills for Project 2:
+
+AWS (S3, SQS)
+Snowflake (Snowpipe, Streams, Tasks, Stored Procedures)
+Query Optimization (Cluster Keys, Materialized Views)
+dbt, Power BI
+ETL Processing and Performance Optimization
+*/
